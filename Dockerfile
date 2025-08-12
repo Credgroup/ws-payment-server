@@ -17,7 +17,7 @@ RUN npm install
 COPY . .
 
 # Expõe a porta que a sua aplicação Node.js está escutando (provavelmente a mesma que você usa localmente)
-EXPOSE 3000
+EXPOSE 8080
 
 # Comando para iniciar a sua aplicação (utilizando nodemon com ts-node)
 CMD ["npm", "start"]
