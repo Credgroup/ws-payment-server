@@ -1,22 +1,36 @@
 import { createServer } from 'http';
 import { WebSocketServer as WSWebSocketServer, WebSocket } from 'ws';
+import express from 'express';
+import cors from 'cors';
 import { RoomManager } from './rooms';
 import { PaymentFlowHandler } from './handlers/paymentFlow';
 import { Logger } from './utils/logger';
 import { isValidEvent } from './events';
-import { WebSocketEvent } from './types';
+import { WebSocketEvent, BroadcastMessageRequest, ServerStatusResponse, ApiResponse } from './types';
 
 export class WebSocketServer {
   private wss: WSWebSocketServer;
   private roomManager: RoomManager;
   private paymentHandler: PaymentFlowHandler;
+  private app: express.Application;
+  private serverStartTime: number;
 
   constructor(port: number = 8080) {
+    this.serverStartTime = Date.now();
+    
+    // Criar aplicação Express
+    this.app = express();
+    
+    // Configurar middleware
+    this.app.use(cors());
+    this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: true }));
+
+    // Configurar rotas HTTP
+    this.setupHttpRoutes();
+
     // Criar servidor HTTP
-    const server = createServer((req, res) => {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('WebSocket Payment Server está rodando!\n');
-    });
+    const server = createServer(this.app);
 
     // Criar servidor WebSocket
     this.wss = new WSWebSocketServer({ server });
@@ -31,11 +45,144 @@ export class WebSocketServer {
     // Iniciar servidor
     server.listen(port, () => {
       Logger.info(`Servidor WebSocket iniciado na porta ${port}`);
-      Logger.info(`Acesse http://localhost:${port} para verificar o status`);
+      Logger.info(`API HTTP disponível em http://localhost:${port}/api`);
+      Logger.info(`Status do servidor: http://localhost:${port}/api/server/status`);
     });
 
     // Configurar limpeza periódica de salas vazias
     this.setupPeriodicCleanup();
+  }
+
+  private setupHttpRoutes(): void {
+    // Endpoint de status do servidor
+    this.app.get('/api/server/status', (req, res) => {
+      try {
+        const stats = this.getStats();
+        const statusResponse: ServerStatusResponse = {
+          status: 'running',
+          uptime: Date.now() - this.serverStartTime,
+          totalConnections: stats.totalConnections,
+          totalRooms: stats.totalRooms,
+          timestamp: Date.now(),
+          version: '1.0.0'
+        };
+
+        const apiResponse: ApiResponse<ServerStatusResponse> = {
+          success: true,
+          data: statusResponse,
+          timestamp: Date.now()
+        };
+
+        res.json(apiResponse);
+      } catch (error) {
+        Logger.error('Erro ao obter status do servidor:', error);
+        const errorResponse: ApiResponse = {
+          success: false,
+          error: 'Erro interno do servidor',
+          timestamp: Date.now()
+        };
+        res.status(500).json(errorResponse);
+      }
+    });
+
+    // Endpoint para broadcast de mensagens
+    this.app.post('/api/message/room/:roomId/broadcast', (req, res) => {
+      try {
+        const { roomId } = req.params;
+        const { eventType, message, idSeguro }: BroadcastMessageRequest = req.body;
+        Logger.info(`[API ESTIMULADA] Broadcast recebido para sala ${roomId}: ${eventType} (${idSeguro})`); 
+
+        // Validação dos campos obrigatórios
+        if (!eventType || !message || !idSeguro) {
+          const errorResponse: ApiResponse = {
+            success: false,
+            error: 'Campos obrigatórios: eventType, message, idSeguro',
+            timestamp: Date.now()
+          };
+          return res.status(400).json(errorResponse);
+        }
+
+        // Verificar se a sala existe
+        if (!this.roomManager.roomExists(roomId)) {
+          Logger.info(`[API ESTIMULADA] Sala ${roomId} não encontrada`);
+          const errorResponse: ApiResponse = {
+            success: false,
+            error: `Sala ${roomId} não encontrada`,
+            timestamp: Date.now()
+          };
+          return res.status(404).json(errorResponse);
+        }
+
+        // Criar evento para broadcast
+        const broadcastEvent = {
+          type: eventType,
+          payload: {
+            message,
+            idSeguro,
+            timestamp: Date.now(),
+            source: 'api'
+          }
+        };
+
+        // Enviar para todos os clientes na sala
+        const sentCount = this.roomManager.broadcastToRoom(roomId, broadcastEvent, undefined);
+
+        Logger.info(`[API ESTIMULADA] Broadcast enviado para sala ${roomId}: ${eventType} (${sentCount} clientes)`);
+
+        const successResponse: ApiResponse = {
+          success: true,
+          data: {
+            roomId,
+            eventType,
+            message,
+            idSeguro,
+            sentToClients: sentCount,
+            timestamp: Date.now()
+          },
+          timestamp: Date.now()
+        };
+
+        res.json(successResponse);
+
+      } catch (error) {
+        Logger.error('Erro ao fazer broadcast:', error);
+        const errorResponse: ApiResponse = {
+          success: false,
+          error: 'Erro interno do servidor',
+          timestamp: Date.now()
+        };
+        res.status(500).json(errorResponse);
+      }
+    });
+
+    // Endpoint de health check
+    this.app.get('/health', (req, res) => {
+      res.json({ status: 'ok', timestamp: Date.now() });
+    });
+
+    // Endpoint raiz
+    this.app.get('/', (req, res) => {
+      res.json({
+        message: 'WebSocket Payment Server está rodando!',
+        endpoints: {
+          status: '/api/server/status',
+          broadcast: '/api/message/room/:roomId/broadcast',
+          health: '/health'
+        },
+        timestamp: Date.now()
+      });
+    });
+
+    // Middleware de tratamento de erros
+    this.app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      Logger.error('Erro na API HTTP:', err);
+      const errorResponse: ApiResponse = {
+        success: false,
+        error: 'Erro interno do servidor',
+        timestamp: Date.now()
+      };
+      res.status(500).json(errorResponse);
+    });
   }
 
   private setupWebSocketHandlers(): void {

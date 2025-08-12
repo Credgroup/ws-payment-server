@@ -139,3 +139,26 @@ export interface Room {
   clients: Map<string, ConnectedClient>;
   createdAt: number;
 } 
+
+// Tipos para endpoints HTTP
+export interface BroadcastMessageRequest {
+  eventType: string;
+  message: string;
+  idSeguro: string;
+}
+
+export interface ServerStatusResponse {
+  status: 'running' | 'stopped';
+  uptime: number;
+  totalConnections: number;
+  totalRooms: number;
+  timestamp: number;
+  version: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  timestamp: number;
+} 

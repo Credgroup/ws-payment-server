@@ -83,12 +83,17 @@ export class RoomManager {
     return client?.roomId === roomId;
   }
 
+  // Verificar se uma sala existe
+  roomExists(roomId: string): boolean {
+    return this.rooms.has(roomId);
+  }
+
   // Transmitir evento para todos os clientes de uma sala (exceto o remetente)
-  broadcastToRoom(roomId: string, event: any, excludeClientId?: string): void {
+  broadcastToRoom(roomId: string, event: any, excludeClientId?: string): number {
     const room = this.rooms.get(roomId);
     if (!room) {
       Logger.warn(`Tentativa de transmitir para sala inexistente: ${roomId}`);
-      return;
+      return 0;
     }
 
     let recipientsCount = 0;
@@ -106,6 +111,7 @@ export class RoomManager {
     }
 
     Logger.wsBroadcast(event.type, roomId, recipientsCount);
+    return recipientsCount;
   }
 
   // Transmitir evento para um cliente específico
