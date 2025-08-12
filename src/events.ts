@@ -21,11 +21,11 @@ export enum EventTypes {
 }
 
 // Função para criar eventos com timestamp
-export function createEvent<T extends WebSocketEvent>(
-  eventType: T['type'],
-  payload: Omit<T['payload'], 'timestamp'>,
+export function createEvent(
+  eventType: string,
+  payload: any,
   roomId: string
-): T {
+): any {
   return {
     type: eventType,
     payload: {
@@ -33,7 +33,7 @@ export function createEvent<T extends WebSocketEvent>(
       roomId,
       timestamp: Date.now()
     }
-  } as T;
+  };
 }
 
 // Função para validar se um evento é válido
