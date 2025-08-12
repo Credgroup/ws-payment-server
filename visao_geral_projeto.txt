@@ -1,0 +1,144 @@
+🧠 Descrição Geral do Projeto
+Estamos desenvolvendo um servidor WebSocket (WS) responsável por intermediar a comunicação em tempo real entre dois dispositivos envolvidos no fluxo de pagamento de um produto.
+
+Este servidor será responsável por criar uma sala de comunicação exclusiva baseada em um identificador único (como o ID do link de pagamento), onde:
+
+Dispositivo 1 é quem inicia o processo e gera o link de pagamento. Ele se conecta ao servidor WS e entra na sala correspondente.
+
+Dispositivo 2 acessa o link (shortlink), entra na aplicação de pagamento e também se conecta à mesma sala. Ele irá comunicar eventos importantes e o status final do pagamento ao WS.
+
+O servidor será o responsável por emitir os eventos apropriados ao Dispositivo 1, conforme o Dispositivo 2 progride no fluxo de pagamento.
+
+📦 Objetivos
+Comunicação em tempo real entre dois dispositivos usando WebSocket.
+
+Manter uma sala de comunicação por link de pagamento.
+
+Permitir envio de múltiplos eventos do fluxo do pagamento para o Dispositivo 1.
+
+Manter uma estrutura de código modular, limpa e escalável.
+
+Usar somente dependências necessárias, evitando ferramentas pesadas ou complexas.
+
+🔄 Fluxo de Comunicação
+Dispositivo 1:
+
+Gera um link de pagamento (shortlink).
+
+Se conecta ao WS e entra na sala com base no ID do pagamento.
+
+Dispositivo 2:
+
+Acessa o shortlink.
+
+Entra na mesma sala WS.
+
+Durante o fluxo, emite eventos como:
+
+Entrou na tela de resumo.
+
+Clicou em "prosseguir".
+
+Alterou método de pagamento.
+
+Preencheu dados.
+
+Clicou em "pagar".
+
+Status final da API: sucesso ou erro.
+
+O WS envia essas atualizações para o Dispositivo 1 em tempo real.
+
+🧱 Estrutura Sugerida do Projeto
+bash
+Copiar
+Editar
+ws-payment-server/
+├── app.ts              # Ponto de entrada do servidor WebSocket
+├── server.ts           # Criação e inicialização do servidor HTTP + WebSocket
+├── rooms.ts            # Gerenciamento de salas e usuários conectados
+├── events.ts           # Enum e tipos de eventos WS suportados
+├── handlers/
+│   └── paymentFlow.ts  # Handlers dos eventos do fluxo de pagamento
+├── types/
+│   └── index.ts        # Tipagens globais para eventos e payloads
+├── utils/
+│   └── logger.ts       # Função de log customizada
+├── package.json
+└── README.md
+⚙️ Tecnologias e Dependências
+Node.js
+
+ws (WebSocket nativo e leve)
+
+TypeScript (para escalabilidade e legibilidade)
+
+Nenhuma dependência desnecessária — foco em simplicidade e performance.
+
+✅ Requisitos Técnicos
+Conexão com sala baseada no ID do pagamento.
+
+Suporte a múltiplos eventos de fluxo de pagamento.
+
+Emissão de eventos personalizados do Dispositivo 2 para o Dispositivo 1.
+
+Estrutura robusta e extensível para novos eventos.
+
+Logs simples para monitoramento básico do servidor.
+
+
+
+--------------------------------------
+
+🎯 Propósito Principal
+Servidor de comunicação em tempo real para intermediar pagamentos entre dois dispositivos:
+Device 1: Gera o link de pagamento e monitora o progresso
+Device 2: Processa o pagamento e envia atualizações
+🚀 Funcionalidades Core
+Sistema de Salas Isoladas
+Cada pagamento tem uma sala única baseada no roomId
+Comunicação isolada e segura entre dispositivos
+Limpeza automática de salas vazias
+Gerenciamento de Conexões
+Identificação única de clientes (clientId)
+Suporte a múltiplas conexões simultâneas
+Tratamento de desconexões e reconexões
+Fluxo de Pagamento Completo
+8 eventos principais do processo de pagamento:
+JOIN_ROOM - Entrada na sala
+ENTERED_SUMMARY - Entrou no resumo
+CLICKED_PROCEED - Clicou em prosseguir
+PAYMENT_METHOD_CHANGED - Alterou método
+DATA_FILLED - Dados preenchidos
+CLICKED_PAY - Clicou em pagar
+PAYMENT_SUCCESS - Pagamento aprovado
+PAYMENT_ERROR - Erro no pagamento
+Sistema de Broadcast
+Transmissão de eventos para todos os clientes na sala
+Exclusão do remetente para evitar loops
+Confirmações de entrega
+🛠️ Recursos Técnicos
+Arquitetura Robusta
+TypeScript com tipagem forte
+Estrutura modular e escalável
+Handlers especializados por evento
+Monitoramento e Logs
+Sistema de logs detalhado
+Estatísticas em tempo real
+Rastreamento de conexões e eventos
+Tratamento de Erros
+Validação de eventos recebidos
+Tratamento de erros de conexão
+Desligamento gracioso do servidor
+Performance
+Limpeza periódica de recursos
+Gerenciamento eficiente de memória
+Suporte a ping/pong para manter conexões ativas
+📊 Estatísticas Disponíveis
+Total de salas ativas
+Total de clientes conectados
+Detalhes de cada sala (ID, número de clientes, data de criação)
+�� Configuração
+Porta configurável (padrão: 8080)
+Suporte a variáveis de ambiente
+Modos de desenvolvimento e produção

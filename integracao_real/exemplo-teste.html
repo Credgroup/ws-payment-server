@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Integração Device 1 - React</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .connecting { background-color: #cce5ff; color: #004085; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .events {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .event {
+            background: white;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+            font-size: 14px;
+        }
+        .event.success { border-left-color: #28a745; }
+        .event.error { border-left-color: #dc3545; }
+        .event.info { border-left-color: #17a2b8; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .config {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin: 5px;
+            width: 200px;
+        }
+        .instructions {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Teste de Integração Device 1 - React</h1>
+        
+        <div class="instructions">
+            <h3>📋 Instruções:</h3>
+            <ol>
+                <li>Certifique-se de que o servidor WebSocket está rodando (<code>npm run dev</code>)</li>
+                <li>Configure a URL do servidor abaixo</li>
+                <li>Clique em "Conectar" para simular o Device 1</li>
+                <li>Use o <code>test-client.html</code> como Device 2 para enviar eventos</li>
+                <li>Observe os eventos aparecerem aqui em tempo real</li>
+            </ol>
+        </div>
+
+        <div class="config">
+            <h3>⚙️ Configuração</h3>
+            <label>URL do Servidor:</label>
+            <input type="text" id="wsUrl" value="ws://localhost:8080" placeholder="ws://localhost:8080">
+            <br>
+            <label>Room ID:</label>
+            <input type="text" id="roomId" value="pay_123" placeholder="pay_123">
+        </div>
+
+        <div id="status" class="status disconnected">
+            ❌ Desconectado
+        </div>
+
+        <div>
+            <button id="connectBtn" onclick="connect()">🔌 Conectar</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>🔌 Desconectar</button>
+            <button id="clearBtn" onclick="clearEvents()">🗑️ Limpar Eventos</button>
+        </div>
+
+        <div class="events">
+            <h3>📱 Eventos Recebidos do Device 2:</h3>
+            <div id="eventsList">
+                <p style="color: #6c757d; font-style: italic;">Nenhum evento recebido ainda...</p>
+            </div>
+        </div>
+
+        <div>
+            <h3>📊 Estatísticas:</h3>
+            <p>Eventos recebidos: <span id="eventCount">0</span></p>
+            <p>Última atividade: <span id="lastActivity">Nunca</span></p>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let eventCount = 0;
+        let isConnected = false;
+
+        function updateStatus(status, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${status}`;
+            statusEl.innerHTML = message;
+        }
+
+        function addEvent(event, type = 'info') {
+            const eventsList = document.getElementById('eventsList');
+            const eventEl = document.createElement('div');
+            eventEl.className = `event ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            eventEl.innerHTML = `
+                <strong>${timestamp}</strong> - ${event.type}<br>
+                <small>${JSON.stringify(event.payload, null, 2)}</small>
+            `;
+            
+            eventsList.appendChild(eventEl);
+            eventsList.scrollTop = eventsList.scrollHeight;
+            
+            eventCount++;
+            document.getElementById('eventCount').textContent = eventCount;
+            document.getElementById('lastActivity').textContent = timestamp;
+        }
+
+        function clearEvents() {
+            document.getElementById('eventsList').innerHTML = 
+                '<p style="color: #6c757d; font-style: italic;">Nenhum evento recebido ainda...</p>';
+            eventCount = 0;
+            document.getElementById('eventCount').textContent = '0';
+            document.getElementById('lastActivity').textContent = 'Nunca';
+        }
+
+        function connect() {
+            const wsUrl = document.getElementById('wsUrl').value;
+            const roomId = document.getElementById('roomId').value;
+            
+            if (!wsUrl || !roomId) {
+                alert('Por favor, preencha a URL e Room ID');
+                return;
+            }
+
+            try {
+                updateStatus('connecting', '🔄 Conectando...');
+                document.getElementById('connectBtn').disabled = true;
+                
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function() {
+                    console.log('✅ WebSocket conectado');
+                    isConnected = true;
+                    updateStatus('connected', '✅ Conectado ao servidor');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    
+                    // Entra na sala automaticamente
+                    const joinEvent = {
+                        type: 'JOIN_ROOM',
+                        timestamp: Date.now(),
+                        clientId: `device1_${Math.random().toString(36).substring(2, 15)}`,
+                        payload: { roomId }
+                    };
+                    
+                    ws.send(JSON.stringify(joinEvent));
+                    console.log('🏠 Entrando na sala:', roomId);
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('📥 Evento recebido:', data);
+                        
+                        let eventType = 'info';
+                        if (data.type === 'PAYMENT_SUCCESS') eventType = 'success';
+                        else if (data.type === 'PAYMENT_ERROR') eventType = 'error';
+                        
+                        addEvent(data, eventType);
+                        
+                        // Processa eventos específicos
+                        switch (data.type) {
+                            case 'ROOM_JOINED':
+                                console.log('🏠 Sala confirmada:', data.payload.roomId);
+                                break;
+                            case 'PAYMENT_SUCCESS':
+                                console.log('✅ Pagamento realizado com sucesso!');
+                                break;
+                            case 'PAYMENT_ERROR':
+                                console.log('❌ Erro no pagamento:', data.payload.error);
+                                break;
+                        }
+                    } catch (error) {
+                        console.error('❌ Erro ao processar mensagem:', error);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    console.log('🔌 WebSocket desconectado:', event.code, event.reason);
+                    isConnected = false;
+                    updateStatus('disconnected', '❌ Desconectado');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('❌ Erro no WebSocket:', error);
+                    updateStatus('error', '❌ Erro na conexão');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                };
+                
+            } catch (error) {
+                console.error('❌ Erro ao criar conexão:', error);
+                updateStatus('error', '❌ Erro ao criar conexão');
+                document.getElementById('connectBtn').disabled = false;
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'Desconexão intencional');
+                ws = null;
+            }
+        }
+
+        // Cleanup ao sair da página
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html> 

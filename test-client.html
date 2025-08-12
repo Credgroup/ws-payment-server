@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste WebSocket Payment Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .device1 { border-left: 4px solid #007bff; }
+        .device2 { border-left: 4px solid #28a745; }
+        .logs { border-left: 4px solid #ffc107; }
+        
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button.success {
+            background: #28a745;
+        }
+        
+        button.success:hover {
+            background: #1e7e34;
+        }
+        
+        button.danger {
+            background: #dc3545;
+        }
+        
+        button.danger:hover {
+            background: #c82333;
+        }
+        
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 5px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log.info { border-left: 4px solid #007bff; }
+        .log.success { border-left: 4px solid #28a745; }
+        .log.error { border-left: 4px solid #dc3545; }
+        .log.warning { border-left: 4px solid #ffc107; }
+        
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste WebSocket Payment Server</h1>
+    
+    <div class="container">
+        <!-- Dispositivo 1 (Gerador do Link) -->
+        <div class="panel device1">
+            <h2>📱 Dispositivo 1 (Gerador do Link)</h2>
+            <div id="device1-status" class="status disconnected">Desconectado</div>
+            
+            <input type="text" id="device1-room" placeholder="ID da Sala (ex: payment_123)" value="payment_123">
+            <input type="text" id="device1-id" placeholder="ID do Dispositivo" value="device_1">
+            
+            <button onclick="connectDevice1()">🔗 Conectar</button>
+            <button onclick="disconnectDevice1()">❌ Desconectar</button>
+            <button onclick="joinRoom()">🚪 Entrar na Sala</button>
+            
+            <h3>📨 Mensagens Recebidas:</h3>
+            <div id="device1-messages"></div>
+        </div>
+        
+        <!-- Dispositivo 2 (Processador do Pagamento) -->
+        <div class="panel device2">
+            <h2>💳 Dispositivo 2 (Processador do Pagamento)</h2>
+            <div id="device2-status" class="status disconnected">Desconectado</div>
+            
+            <input type="text" id="device2-room" placeholder="ID da Sala (ex: payment_123)" value="payment_123">
+            <input type="text" id="device2-id" placeholder="ID do Dispositivo" value="device_2">
+            
+            <button onclick="connectDevice2()">🔗 Conectar</button>
+            <button onclick="disconnectDevice2()">❌ Desconectar</button>
+            
+            <h3>🔄 Eventos do Fluxo de Pagamento:</h3>
+            <button onclick="sendEvent('ENTERED_SUMMARY')" class="success">📋 Entrou na Tela de Resumo</button>
+            <button onclick="sendEvent('CLICKED_PROCEED')" class="success">➡️ Clicou em "Prosseguir"</button>
+            <button onclick="sendEvent('PAYMENT_METHOD_CHANGED')" class="success">💳 Alterou Método de Pagamento</button>
+            <button onclick="sendEvent('DATA_FILLED')" class="success">✏️ Preencheu Dados</button>
+            <button onclick="sendEvent('CLICKED_PAY')" class="success">💸 Clicou em "Pagar"</button>
+            <button onclick="sendEvent('PAYMENT_SUCCESS')" class="success">✅ Pagamento Bem-sucedido</button>
+            <button onclick="sendEvent('PAYMENT_ERROR')" class="danger">❌ Erro no Pagamento</button>
+            
+            <h3>📨 Mensagens Recebidas:</h3>
+            <div id="device2-messages"></div>
+        </div>
+        
+        <!-- Logs -->
+        <div class="panel logs">
+            <h2>📊 Logs do Sistema</h2>
+            <button onclick="clearLogs()">🗑️ Limpar Logs</button>
+            <div id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        let device1Ws = null;
+        let device2Ws = null;
+        const serverUrl = 'ws://localhost:8080';
+        
+        // Funções de conexão
+        function connectDevice1() {
+            if (device1Ws) {
+                device1Ws.close();
+            }
+            
+            device1Ws = new WebSocket(serverUrl);
+            setupWebSocket(device1Ws, 'device1');
+            log('Dispositivo 1 conectando...', 'info');
+        }
+        
+        function connectDevice2() {
+            if (device2Ws) {
+                device2Ws.close();
+            }
+            
+            device2Ws = new WebSocket(serverUrl);
+            setupWebSocket(device2Ws, 'device2');
+            log('Dispositivo 2 conectando...', 'info');
+        }
+        
+        function disconnectDevice1() {
+            if (device1Ws) {
+                device1Ws.close();
+                device1Ws = null;
+            }
+        }
+        
+        function disconnectDevice2() {
+            if (device2Ws) {
+                device2Ws.close();
+                device2Ws = null;
+            }
+        }
+        
+        function setupWebSocket(ws, device) {
+            ws.onopen = () => {
+                updateStatus(device, 'connected');
+                log(`${device.toUpperCase()} conectado ao servidor`, 'success');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                addMessage(device, data);
+                log(`${device.toUpperCase()} recebeu: ${data.type}`, 'info');
+            };
+            
+            ws.onclose = () => {
+                updateStatus(device, 'disconnected');
+                log(`${device.toUpperCase()} desconectado`, 'warning');
+            };
+            
+            ws.onerror = (error) => {
+                log(`Erro no ${device}: ${error}`, 'error');
+            };
+        }
+        
+        function joinRoom() {
+            if (!device1Ws || device1Ws.readyState !== WebSocket.OPEN) {
+                alert('Dispositivo 1 deve estar conectado primeiro!');
+                return;
+            }
+            
+            const roomId = document.getElementById('device1-room').value;
+            const deviceId = document.getElementById('device1-id').value;
+            
+            const event = {
+                type: 'JOIN_ROOM',
+                payload: {
+                    roomId: roomId,
+                    deviceId: deviceId
+                }
+            };
+            
+            device1Ws.send(JSON.stringify(event));
+            log('Dispositivo 1 enviou JOIN_ROOM', 'info');
+        }
+        
+        function sendEvent(eventType) {
+            if (!device2Ws || device2Ws.readyState !== WebSocket.OPEN) {
+                alert('Dispositivo 2 deve estar conectado primeiro!');
+                return;
+            }
+            
+            const roomId = document.getElementById('device2-room').value;
+            const deviceId = document.getElementById('device2-id').value;
+            
+            let event = {
+                type: eventType,
+                payload: {
+                    roomId: roomId,
+                    deviceId: deviceId
+                }
+            };
+            
+            // Adicionar dados específicos para alguns eventos
+            switch (eventType) {
+                case 'PAYMENT_METHOD_CHANGED':
+                    event.payload.method = 'cartão de crédito';
+                    break;
+                case 'DATA_FILLED':
+                    event.payload.fields = ['nome', 'email', 'cpf', 'cartão'];
+                    break;
+                case 'PAYMENT_SUCCESS':
+                    event.payload.transactionId = 'tx_' + Date.now();
+                    event.payload.amount = 99.90;
+                    break;
+                case 'PAYMENT_ERROR':
+                    event.payload.error = 'Cartão recusado';
+                    event.payload.code = 'CARD_DECLINED';
+                    break;
+            }
+            
+            device2Ws.send(JSON.stringify(event));
+            log(`Dispositivo 2 enviou ${eventType}`, 'info');
+        }
+        
+        function updateStatus(device, status) {
+            const element = document.getElementById(`${device}-status`);
+            element.className = `status ${status}`;
+            element.textContent = status === 'connected' ? 'Conectado' : 'Desconectado';
+        }
+        
+        function addMessage(device, data) {
+            const container = document.getElementById(`${device}-messages`);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'log info';
+            messageDiv.textContent = JSON.stringify(data, null, 2);
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function log(message, type = 'info') {
+            const container = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            container.appendChild(logDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        // Auto-conectar dispositivos ao carregar a página
+        window.onload = () => {
+            setTimeout(() => {
+                connectDevice1();
+                setTimeout(() => {
+                    connectDevice2();
+                }, 1000);
+            }, 500);
+        };
+    </script>
+</body>
+</html> 

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device 2 - Teste WebSocket</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .connecting { background-color: #cce5ff; color: #004085; }
+        
+        .connection-panel {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .connection-panel input {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin: 5px;
+            width: 200px;
+        }
+        
+        .events-panel {
+            margin: 20px 0;
+        }
+        .event-group {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .event-group h3 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        button.success { background-color: #28a745; }
+        button.success:hover { background-color: #218838; }
+        button.danger { background-color: #dc3545; }
+        button.danger:hover { background-color: #c82333; }
+        button.warning { background-color: #ffc107; color: #212529; }
+        button.warning:hover { background-color: #e0a800; }
+        
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        .log-entry.success { color: #28a745; }
+        .log-entry.error { color: #dc3545; }
+        .log-entry.info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Device 2 - Teste WebSocket</h1>
+        <p>Simula o cliente que acessa o link de pagamento e envia eventos</p>
+        
+        <!-- Status da Conexão -->
+        <div id="status" class="status disconnected">
+            ❌ Desconectado
+        </div>
+        
+        <!-- Painel de Conexão -->
+        <div class="connection-panel">
+            <h3>🔌 Conexão</h3>
+            <div>
+                <label>URL do Servidor:</label>
+                <input type="text" id="wsUrl" value="ws://localhost:8080" placeholder="ws://localhost:8080">
+            </div>
+            <div>
+                <label>Room ID:</label>
+                <input type="text" id="roomId" value="pay_123" placeholder="pay_123">
+            </div>
+            <div>
+                <button id="connectBtn" onclick="toggleConnection()">🔌 Conectar</button>
+            </div>
+        </div>
+        
+        <!-- Painel de Eventos -->
+        <div class="events-panel">
+            <h3>📤 Enviar Eventos</h3>
+            
+            <!-- Eventos de Navegação -->
+            <div class="event-group">
+                <h3>🧭 Navegação</h3>
+                <button onclick="sendEvent('ENTERED_SUMMARY')" disabled>📋 Entrou na tela de resumo</button>
+                <button onclick="sendEvent('CLICKED_PROCEED')" disabled>➡️ Clicou em "prosseguir"</button>
+            </div>
+            
+            <!-- Eventos de Dados -->
+            <div class="event-group">
+                <h3>📝 Dados</h3>
+                <button onclick="sendEvent('PAYMENT_METHOD_CHANGED')" disabled>💳 Alterou método de pagamento</button>
+                <button onclick="sendEvent('DATA_FILLED')" disabled>✅ Preencheu todos os dados</button>
+            </div>
+            
+            <!-- Eventos de Pagamento -->
+            <div class="event-group">
+                <h3>💸 Pagamento</h3>
+                <button onclick="sendEvent('CLICKED_PAY')" disabled>💳 Clicou em "pagar"</button>
+                <button onclick="sendEvent('PAYMENT_SUCCESS')" disabled class="success">✅ Pagamento realizado com sucesso</button>
+                <button onclick="sendEvent('PAYMENT_ERROR')" disabled class="danger">❌ Erro no pagamento</button>
+            </div>
+            
+            <!-- Eventos Customizados -->
+            <div class="event-group">
+                <h3>🔧 Customizados</h3>
+                <button onclick="sendCustomEvent()" disabled class="warning">📝 Enviar evento customizado</button>
+            </div>
+        </div>
+        
+        <!-- Log de Atividades -->
+        <div>
+            <h3>📋 Log de Atividades</h3>
+            <div id="log" class="log">
+                <div class="log-entry info">Aguardando conexão...</div>
+            </div>
+            <button onclick="clearLog()" style="margin-top: 10px;">🗑️ Limpar Log</button>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let isConnected = false;
+
+        function updateStatus(status, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${status}`;
+            statusEl.innerHTML = message;
+        }
+
+        function addLog(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            
+            logEl.appendChild(logEntry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '<div class="log-entry info">Log limpo...</div>';
+        }
+
+        function toggleConnection() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+
+        function connect() {
+            const wsUrl = document.getElementById('wsUrl').value;
+            const roomId = document.getElementById('roomId').value;
+            
+            if (!wsUrl || !roomId) {
+                alert('Por favor, preencha a URL e Room ID');
+                return;
+            }
+
+            try {
+                updateStatus('connecting', '🔄 Conectando...');
+                addLog('Tentando conectar...', 'info');
+                document.getElementById('connectBtn').disabled = true;
+                
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function() {
+                    console.log('✅ WebSocket conectado');
+                    isConnected = true;
+                    updateStatus('connected', '✅ Conectado ao servidor');
+                    document.getElementById('connectBtn').innerHTML = '🔌 Desconectar';
+                    document.getElementById('connectBtn').disabled = false;
+                    
+                    addLog('Conectado com sucesso!', 'success');
+                    
+                    // Habilita todos os botões de evento
+                    enableEventButtons(true);
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('📥 Evento recebido:', data);
+                        addLog(`Recebido: ${data.type}`, 'info');
+                    } catch (error) {
+                        console.error('❌ Erro ao processar mensagem:', error);
+                        addLog(`Erro ao processar mensagem: ${error.message}`, 'error');
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    console.log('🔌 WebSocket desconectado:', event.code, event.reason);
+                    isConnected = false;
+                    updateStatus('disconnected', '❌ Desconectado');
+                    document.getElementById('connectBtn').innerHTML = '🔌 Conectar';
+                    document.getElementById('connectBtn').disabled = false;
+                    
+                    addLog(`Desconectado: ${event.reason || 'Conexão fechada'}`, 'error');
+                    
+                    // Desabilita todos os botões de evento
+                    enableEventButtons(false);
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('❌ Erro no WebSocket:', error);
+                    updateStatus('disconnected', '❌ Erro na conexão');
+                    document.getElementById('connectBtn').innerHTML = '🔌 Conectar';
+                    document.getElementById('connectBtn').disabled = false;
+                    
+                    addLog('Erro na conexão WebSocket', 'error');
+                };
+                
+            } catch (error) {
+                console.error('❌ Erro ao criar conexão:', error);
+                updateStatus('disconnected', '❌ Erro ao criar conexão');
+                document.getElementById('connectBtn').innerHTML = '🔌 Conectar';
+                document.getElementById('connectBtn').disabled = false;
+                
+                addLog(`Erro ao criar conexão: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'Desconexão intencional');
+                ws = null;
+            }
+        }
+
+        function enableEventButtons(enable) {
+            const buttons = document.querySelectorAll('.events-panel button');
+            buttons.forEach(button => {
+                button.disabled = !enable;
+            });
+        }
+
+        function sendEvent(eventType) {
+            if (!isConnected || !ws) {
+                addLog('Não conectado ao servidor', 'error');
+                return;
+            }
+
+            const roomId = document.getElementById('roomId').value;
+            const event = {
+                type: eventType,
+                timestamp: Date.now(),
+                clientId: `device2_${Math.random().toString(36).substring(2, 15)}`,
+                payload: {
+                    roomId: roomId,
+                    message: `Evento ${eventType} enviado pelo Device 2`
+                }
+            };
+
+            // Adiciona payload específico para alguns eventos
+            switch (eventType) {
+                case 'PAYMENT_SUCCESS':
+                    event.payload.message = 'Pagamento realizado com sucesso!';
+                    break;
+                case 'PAYMENT_ERROR':
+                    event.payload.error = 'Erro no processamento do pagamento';
+                    event.payload.message = 'Falha no pagamento';
+                    break;
+                case 'PAYMENT_METHOD_CHANGED':
+                    event.payload.message = 'Método de pagamento alterado para cartão de crédito';
+                    break;
+                case 'DATA_FILLED':
+                    event.payload.message = 'Todos os dados foram preenchidos corretamente';
+                    break;
+            }
+
+            try {
+                ws.send(JSON.stringify(event));
+                console.log('📤 Evento enviado:', event);
+                addLog(`Enviado: ${eventType}`, 'success');
+            } catch (error) {
+                console.error('❌ Erro ao enviar evento:', error);
+                addLog(`Erro ao enviar evento: ${error.message}`, 'error');
+            }
+        }
+
+        function sendCustomEvent() {
+            const eventType = prompt('Digite o tipo do evento:');
+            if (eventType) {
+                const customPayload = prompt('Digite o payload (JSON) ou deixe vazio:');
+                const roomId = document.getElementById('roomId').value;
+                
+                const event = {
+                    type: eventType,
+                    timestamp: Date.now(),
+                    clientId: `device2_${Math.random().toString(36).substring(2, 15)}`,
+                    payload: {
+                        roomId: roomId,
+                        message: `Evento customizado: ${eventType}`
+                    }
+                };
+
+                if (customPayload) {
+                    try {
+                        const parsedPayload = JSON.parse(customPayload);
+                        event.payload = { ...event.payload, ...parsedPayload };
+                    } catch (error) {
+                        addLog('Payload JSON inválido', 'error');
+                        return;
+                    }
+                }
+
+                try {
+                    ws.send(JSON.stringify(event));
+                    console.log('📤 Evento customizado enviado:', event);
+                    addLog(`Enviado evento customizado: ${eventType}`, 'success');
+                } catch (error) {
+                    console.error('❌ Erro ao enviar evento customizado:', error);
+                    addLog(`Erro ao enviar evento customizado: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Cleanup ao sair da página
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html> 
