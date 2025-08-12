@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  ws_payment_server:
+    image: "ekio_ws:${VITE_IMAGE_VERSION}"
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_ENV: ${VITE_ENV:-development}
+        VITE_IMAGE_VERSION: ${VITE_IMAGE_VERSION:-0.0.0}
+    environment:
+      - VITE_ENV=${VITE_ENV:-development}
+      - VITE_IMAGE_VERSION=${VITE_IMAGE_VERSION:-0.0.0}
+    ports:
+      - "8094:3000"

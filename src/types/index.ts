@@ -81,6 +81,36 @@ export interface Device2Events {
   };
 }
 
+// Eventos do sistema (enviados pelo servidor)
+export interface SystemEvents {
+  ROOM_JOINED: {
+    type: 'ROOM_JOINED';
+    payload: {
+      roomId: string;
+      deviceId: string;
+      clientId: string;
+    };
+  };
+  
+  ERROR: {
+    type: 'ERROR';
+    payload: {
+      message: string;
+      timestamp: number;
+    };
+  };
+  
+  CONNECTION_ESTABLISHED: {
+    type: 'CONNECTION_ESTABLISHED';
+    payload: {
+      clientId: string;
+      message: string;
+      timestamp: number;
+      supportedEvents: string[];
+    };
+  };
+}
+
 // Union type para todos os eventos
 export type WebSocketEvent = 
   | Device1Events['JOIN_ROOM']
@@ -90,7 +120,10 @@ export type WebSocketEvent =
   | Device2Events['DATA_FILLED']
   | Device2Events['CLICKED_PAY']
   | Device2Events['PAYMENT_SUCCESS']
-  | Device2Events['PAYMENT_ERROR'];
+  | Device2Events['PAYMENT_ERROR']
+  | SystemEvents['ROOM_JOINED']
+  | SystemEvents['ERROR']
+  | SystemEvents['CONNECTION_ESTABLISHED'];
 
 // Tipo para cliente conectado
 export interface ConnectedClient {

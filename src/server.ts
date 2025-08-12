@@ -67,12 +67,12 @@ export class WebSocketServer {
 
         // Se for um evento JOIN_ROOM, adicionar o cliente à sala primeiro
         if (event.type === 'JOIN_ROOM') {
-          const { roomId } = event.payload;
+          const { roomId } = event.payload as { roomId: string; deviceId: string };
           this.roomManager.addClientToRoom(clientId, 'device1', roomId, ws);
         }
         // Se for um evento do device2, adicionar o cliente à sala se ainda não estiver
         else if (['ENTERED_SUMMARY', 'CLICKED_PROCEED', 'PAYMENT_METHOD_CHANGED', 'DATA_FILLED', 'CLICKED_PAY', 'PAYMENT_SUCCESS', 'PAYMENT_ERROR'].includes(event.type)) {
-          const { roomId } = event.payload;
+          const { roomId } = event.payload as { roomId: string; deviceId: string };
           if (!this.roomManager.isClientInRoom(clientId, roomId)) {
             this.roomManager.addClientToRoom(clientId, 'device2', roomId, ws);
           }

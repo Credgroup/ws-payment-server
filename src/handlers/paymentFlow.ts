@@ -10,7 +10,9 @@ export class PaymentFlowHandler {
   handleEvent(event: WebSocketEvent, clientId: string): void {
     try {
       const deviceType = getDeviceTypeFromEvent(event);
-      Logger.wsEvent(event.type, event.payload.roomId, clientId);
+      // Verificar se o evento tem roomId antes de usar
+      const roomId = 'roomId' in event.payload ? event.payload.roomId : 'unknown';
+      Logger.wsEvent(event.type, roomId, clientId);
 
       switch (event.type) {
         case EventTypes.JOIN_ROOM:
