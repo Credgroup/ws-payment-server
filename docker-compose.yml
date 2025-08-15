@@ -14,3 +14,4 @@ services:
       - VITE_IMAGE_VERSION=${VITE_IMAGE_VERSION:-0.0.0}
     ports:
       - "8100:8080"
+    network_mode: "bridge"
