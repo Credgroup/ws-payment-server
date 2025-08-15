@@ -32,8 +32,17 @@ export class WebSocketServer {
     // Criar servidor HTTP
     const server = createServer(this.app);
 
+    // Configurar timeouts TCP para manter conexões ativas
+    server.keepAliveTimeout = 65000; // 65 segundos
+    server.headersTimeout = 66000; // 66 segundos (deve ser > keepAliveTimeout)
+
     // Criar servidor WebSocket
-    this.wss = new WSWebSocketServer({ server });
+    this.wss = new WSWebSocketServer({ 
+      server,
+      // Configurações adicionais para manter conexões ativas
+      perMessageDeflate: false, // Desabilitar compressão para reduzir overhead
+      maxPayload: 1024 * 1024 // 1MB max payload
+    });
     
     // Inicializar gerenciadores
     this.roomManager = new RoomManager();
@@ -47,6 +56,7 @@ export class WebSocketServer {
       Logger.info(`Servidor WebSocket iniciado na porta ${port}`);
       Logger.info(`API HTTP disponível em http://localhost:${port}/api`);
       Logger.info(`Status do servidor: http://localhost:${port}/api/server/status`);
+      Logger.info(`Configurações TCP: keepAliveTimeout=${server.keepAliveTimeout}ms, headersTimeout=${server.headersTimeout}ms`);
     });
 
     // Configurar limpeza periódica de salas vazias
@@ -251,8 +261,38 @@ export class WebSocketServer {
       ws.pong();
     });
 
+    // Configurar heartbeat ativo para manter conexão
+    this.setupHeartbeat(ws, clientId);
+
     // Enviar confirmação de conexão
     this.sendWelcomeMessage(ws, clientId);
+  }
+
+  private setupHeartbeat(ws: WebSocket, clientId: string): void {
+    // Enviar ping a cada 30 segundos para manter conexão ativa
+    const heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.ping();
+          Logger.debug(`Heartbeat enviado para cliente ${clientId}`);
+        } catch (error) {
+          Logger.error(`Erro ao enviar heartbeat para ${clientId}:`, error);
+          clearInterval(heartbeatInterval);
+        }
+      } else {
+        Logger.info(`Conexão fechada para ${clientId}, parando heartbeat`);
+        clearInterval(heartbeatInterval);
+      }
+    }, 30000); // 30 segundos
+
+    // Limpar intervalo quando a conexão for fechada
+    ws.on('close', () => {
+      clearInterval(heartbeatInterval);
+    });
+
+    ws.on('error', () => {
+      clearInterval(heartbeatInterval);
+    });
   }
 
   private sendWelcomeMessage(ws: WebSocket, clientId: string): void {
