@@ -4,6 +4,7 @@ import { Logger } from './utils/logger';
 // Configuração do servidor
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const IMAGE_VERSION = '1.0.0';
 
 // Configurar tratamento de sinais para desligamento gracioso
 process.on('SIGINT', () => {
@@ -38,6 +39,7 @@ function main(): void {
     const server = new WebSocketServer(PORT);
 
     Logger.info('✅ Servidor WebSocket iniciado com sucesso!');
+    Logger.info(`           Versão: ${IMAGE_VERSION}           `);
     Logger.info('📡 Aguardando conexões...');
     Logger.info('');
     Logger.info('📋 Eventos suportados:');
@@ -53,8 +55,11 @@ function main(): void {
     Logger.info('🔗 Para testar, conecte-se via WebSocket em:');
     Logger.info(`   ws://localhost:${PORT}`);
     Logger.info('');
-    Logger.info('🌐 Para verificar o status, acesse:');
-    Logger.info(`   http://localhost:${PORT}`);
+    Logger.info('🌐 Endpoints HTTP disponíveis:');
+    Logger.info(`   • GET  http://localhost:${PORT}/api/server/status - Status do servidor`);
+    Logger.info(`   • POST http://localhost:${PORT}/api/message/room/:roomId/broadcast - Broadcast para sala`);
+    Logger.info(`   • GET  http://localhost:${PORT}/health - Health check`);
+    Logger.info(`   • GET  http://localhost:${PORT}/ - Informações da API`);
 
   } catch (error) {
     Logger.error('❌ Erro ao iniciar o servidor:', error);

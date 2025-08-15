@@ -86,6 +86,72 @@ PORT=3000 NODE_ENV=production npm start
 
 ## 📡 Uso da API
 
+### Endpoints HTTP
+
+O servidor agora possui endpoints HTTP para integração com APIs externas:
+
+#### GET /api/server/status
+Retorna o status atual do servidor:
+```bash
+curl http://localhost:8080/api/server/status
+```
+
+**Resposta:**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "running",
+    "uptime": 3600000,
+    "totalConnections": 5,
+    "totalRooms": 2,
+    "timestamp": 1705312200000,
+    "version": "1.0.0"
+  },
+  "timestamp": 1705312200000
+}
+```
+
+#### POST /api/message/room/:roomId/broadcast
+Envia uma mensagem para todos os clientes em uma sala específica:
+```bash
+curl -X POST http://localhost:8080/api/message/room/payment_123/broadcast \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "PAYMENT_UPDATE",
+    "message": "Pagamento processado com sucesso!",
+    "idSeguro": "seguro_123456"
+  }'
+```
+
+**Resposta:**
+```json
+{
+  "success": true,
+  "data": {
+    "roomId": "payment_123",
+    "eventType": "PAYMENT_UPDATE",
+    "message": "Pagamento processado com sucesso!",
+    "idSeguro": "seguro_123456",
+    "sentToClients": 2,
+    "timestamp": 1705312200000
+  },
+  "timestamp": 1705312200000
+}
+```
+
+#### GET /health
+Health check simples:
+```bash
+curl http://localhost:8080/health
+```
+
+#### GET /
+Informações gerais da API:
+```bash
+curl http://localhost:8080/
+```
+
 ### Conexão WebSocket
 
 Conecte-se ao servidor via WebSocket:
